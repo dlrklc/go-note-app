@@ -19,12 +19,12 @@ var notes = []note{
 	{ID: "3", Title: "Drinking coffee", Text: "Should remember to drink coffee"},
 }
 
-func getNotes(c *gin.Context) {
+func GetNotes(c *gin.Context) {
 	//todo: get posts from db
 	c.IndentedJSON(http.StatusOK, notes)
 }
 
-func getNoteByID(c *gin.Context) {
+func GetNoteByID(c *gin.Context) {
 	id := c.Param("id")
 	//todo: get post by id from db
 	//todo: delete below
@@ -38,7 +38,7 @@ func getNoteByID(c *gin.Context) {
 	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "note not found"})
 }
 
-func addNewNote(c *gin.Context) {
+func AddNewNote(c *gin.Context) {
 	var newNote note
 
 	if err := c.BindJSON(&newNote); err != nil {
@@ -48,7 +48,7 @@ func addNewNote(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, newNote)
 }
 
-func updateNote(c *gin.Context) {
+func UpdateNote(c *gin.Context) {
 	id, ok := c.GetQuery("id")
 
 	var found note
@@ -81,7 +81,7 @@ func updateNote(c *gin.Context) {
 
 }
 
-func deleteNote(c *gin.Context) {
+func DeleteNote(c *gin.Context) {
 	id, ok := c.GetQuery("id")
 
 	var found note
