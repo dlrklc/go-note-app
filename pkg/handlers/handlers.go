@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,6 +39,27 @@ func GetNoteByID(c *gin.Context) {
 	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "note not found"})
 }
 
+func GetNotesByID(c *gin.Context) {
+	idsParam := c.Param("ids")
+
+	ids := strings.Split(idsParam, ",")
+
+	var retrievedNotes = []note{}
+
+	//todo: get post by id from db
+	//todo: delete below
+	for index, a := range notes {
+		for _, b := range ids {
+			if a.ID == b {
+				retrievedNotes = append(retrievedNotes, notes[index])
+				break
+			}
+		}
+	}
+	//todo: delete above
+	c.IndentedJSON(http.StatusOK, retrievedNotes)
+}
+
 func AddNewNote(c *gin.Context) {
 	var newNote note
 
@@ -48,66 +70,93 @@ func AddNewNote(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, newNote)
 }
 
-func UpdateNote(c *gin.Context) {
-	id, ok := c.GetQuery("id")
+func AddNewNotes(c *gin.Context) {
+	var newNotes []note
 
-	var found note
+	if err := c.BindJSON(&newNotes); err != nil {
+		return
+	}
+	notes = append(notes, newNotes...) //todo: update in db
+	c.IndentedJSON(http.StatusCreated, newNotes)
+}
 
-	if !ok {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Missing id query parameter."})
+func UpdateNote(c *gin.Context) { //func updateNotes ?
+	id := c.Param("id")
+
+	var updatedNote note
+
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
 		return
 	}
 
-	for _, a := range notes { //todo: instead get from db
-		if a.ID == id {
-			found = a
+	if err := c.ShouldBindJSON(&updatedNote); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	for i, note := range notes {
+		if note.ID == id {
+			if updatedNote.Title != "" {
+				notes[i].Title = updatedNote.Title
+			}
+			if updatedNote.Text != "" {
+				notes[i].Text = updatedNote.Text
+			}
+			c.JSON(http.StatusOK, notes[i])
+			return
 		}
 	}
 
-	if found == (note{}) {
-		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "note not found."})
-		return
-	}
+	//todo: update also in db
 
-	title := c.Param("title")
-	text := c.Param("text")
-
-	found.Title = title
-	found.Text = text
-
-	//todo: update found in db
-
-	c.IndentedJSON(http.StatusOK, found)
+	c.JSON(http.StatusNotFound, gin.H{"error": "note not found"})
 
 }
 
 func DeleteNote(c *gin.Context) {
-	id, ok := c.GetQuery("id")
+	id := c.Param("id")
 
-	var found note
+	var deletedNote note
 
-	if !ok {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Missing id query parameter."})
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
 		return
 	}
 
-	for _, a := range notes { //todo: instead get from db
+	for index, a := range notes { //todo: instead get from db
 		if a.ID == id {
-			found = a
+			deletedNote = a
+			notes = append(notes[:index], notes[index+1:]...)
+			c.IndentedJSON(http.StatusOK, deletedNote) //todo: also delete from db
+			return
 		}
 	}
 
-	if found == (note{}) {
-		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "note not found."})
+	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "note not found."})
+}
+
+func DeleteNotes(c *gin.Context) {
+	idsParam := c.Param("ids")
+
+	ids := strings.Split(idsParam, ",")
+
+	var deletedNotes []note
+
+	if len(ids) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
 		return
 	}
 
-	//delete from db
+	for _, b := range ids {
+		for index, a := range notes {
+			if a.ID == b {
+				notes = append(notes[:index], notes[index+1:]...)
+				deletedNotes = append(deletedNotes, a)
+				break
+			}
+		}
+	}
 
-	c.IndentedJSON(http.StatusOK, found)
+	c.IndentedJSON(http.StatusOK, deletedNotes)
 }
-
-/*func deleteNotes
-func updateNotesnote
-func addNotes ?
-func getNotesByID*/

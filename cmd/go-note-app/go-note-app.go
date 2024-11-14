@@ -9,9 +9,16 @@ func main() {
 	router := gin.Default() //create a router
 
 	router.GET("/notes", handlers.GetNotes) //handle albums route
-	router.GET("/notes/:id", handlers.GetNoteByID)
-	router.POST("/notes", handlers.AddNewNote)
-	router.PATCH("/notes/:id", handlers.UpdateNote)
+	router.GET("/note/:id", handlers.GetNoteByID)
+	router.GET("/notes/:ids", handlers.GetNotesByID)
+
+	router.POST("/note", handlers.AddNewNote)
+	router.POST("/notes", handlers.AddNewNotes)
+
+	router.PATCH("/note/:id", handlers.UpdateNote)
+
+	router.DELETE("/note/:id", handlers.DeleteNote)
+	router.DELETE("/notes/:ids", handlers.DeleteNotes)
 
 	router.Run("localhost:8080")
 }
