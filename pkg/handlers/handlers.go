@@ -1,42 +1,48 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/dlrklc/go-note-app/db"
 )
 
-type note struct {
+type note struct { //todo: delete after db conn
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Text  string `json:"text"`
 }
 
 // todo: Below should get from db
-var notes = []note{
+var notes = []note{ //todo: delete after db conn
 	{ID: "1", Title: "Hello", Text: "Hello World"},
 	{ID: "2", Title: "Test", Text: "Here test for note"},
 	{ID: "3", Title: "Drinking coffee", Text: "Should remember to drink coffee"},
 }
 
 func GetNotes(c *gin.Context) {
-	//todo: get posts from db
+	notes, err := db.GetNotes()
+	if err != nil {
+		log.Printf("Error getting notes: %v", err)
+		return
+	}
 	c.IndentedJSON(http.StatusOK, notes)
 }
 
 func GetNoteByID(c *gin.Context) {
 	id := c.Param("id")
-	//todo: get post by id from db
-	//todo: delete below
-	for _, a := range notes {
-		if a.ID == id {
-			c.IndentedJSON(http.StatusOK, a)
-			return
-		}
+
+	id_i, _ := strconv.Atoi(id)
+	note, err := db.GetNote(id_i)
+	if err != nil {
+		log.Printf("Error getting note: %v", err)
+		return
 	}
-	//todo: delete above
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "note not found"})
+	c.IndentedJSON(http.StatusOK, note)
 }
 
 func GetNotesByID(c *gin.Context) {
@@ -66,8 +72,14 @@ func AddNewNote(c *gin.Context) {
 	if err := c.BindJSON(&newNote); err != nil {
 		return
 	}
-	notes = append(notes, newNote) //todo: update in db
-	c.IndentedJSON(http.StatusCreated, newNote)
+
+	var id, err = db.CreateNote(newNote.Title, newNote.Text)
+
+	if err != nil {
+		log.Printf("Error creating note: %v", err)
+		return
+	}
+	c.IndentedJSON(http.StatusCreated, gin.H{"id": id})
 }
 
 func AddNewNotes(c *gin.Context) {
@@ -95,7 +107,18 @@ func UpdateNote(c *gin.Context) { //func updateNotes ?
 		return
 	}
 
-	for i, note := range notes {
+	id_i, _ := strconv.Atoi(id)
+
+	err := db.UpdateNote(id_i, updatedNote.Title, updatedNote.Text)
+
+	if err != nil {
+		log.Printf("Error updating note: %v", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"id": id})
+
+	/*for i, note := range notes {
 		if note.ID == id {
 			if updatedNote.Title != "" {
 				notes[i].Title = updatedNote.Title
@@ -110,21 +133,30 @@ func UpdateNote(c *gin.Context) { //func updateNotes ?
 
 	//todo: update also in db
 
-	c.JSON(http.StatusNotFound, gin.H{"error": "note not found"})
+	c.JSON(http.StatusNotFound, gin.H{"error": "note not found"})*/
 
 }
 
 func DeleteNote(c *gin.Context) {
 	id := c.Param("id")
 
-	var deletedNote note
-
 	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
 		return
 	}
 
-	for index, a := range notes { //todo: instead get from db
+	id_i, _ := strconv.Atoi(id)
+
+	err := db.DeleteNote(id_i)
+
+	if err != nil {
+		log.Printf("Error deleting note: %v", err)
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, gin.H{"id": id})
+
+	/*for index, a := range notes { //todo: instead get from db
 		if a.ID == id {
 			deletedNote = a
 			notes = append(notes[:index], notes[index+1:]...)
@@ -133,7 +165,7 @@ func DeleteNote(c *gin.Context) {
 		}
 	}
 
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "note not found."})
+	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "note not found."})*/
 }
 
 func DeleteNotes(c *gin.Context) {

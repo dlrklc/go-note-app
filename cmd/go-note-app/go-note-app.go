@@ -1,11 +1,16 @@
 package main
 
 import (
+	"github.com/dlrklc/go-note-app/db"
 	"github.com/dlrklc/go-note-app/pkg/handlers"
+
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
+	db.Init()
+	defer db.Close()
+
 	router := gin.Default() //create a router
 
 	router.GET("/notes", handlers.GetNotes) //handle albums route
