@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 	"strconv"
@@ -11,23 +12,15 @@ import (
 	"github.com/dlrklc/go-note-app/db"
 )
 
-type note struct { //todo: delete after db conn
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	Text  string `json:"text"`
-}
-
-// todo: Below should get from db
-var notes = []note{ //todo: delete after db conn
-	{ID: "1", Title: "Hello", Text: "Hello World"},
-	{ID: "2", Title: "Test", Text: "Here test for note"},
-	{ID: "3", Title: "Drinking coffee", Text: "Should remember to drink coffee"},
-}
-
 func GetNotes(c *gin.Context) {
 	notes, err := db.GetNotes()
 	if err != nil {
-		log.Printf("Error getting notes: %v", err)
+		log.Printf("[GetNotes] Error getting notes: %v", err)
+		if err == sql.ErrNoRows {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "note not found"})
+			return
+		}
+		c.IndentedJSON(http.StatusInternalServerError, err.Error())
 		return
 	}
 	c.IndentedJSON(http.StatusOK, notes)
@@ -39,7 +32,12 @@ func GetNoteByID(c *gin.Context) {
 	id_i, _ := strconv.Atoi(id)
 	note, err := db.GetNote(id_i)
 	if err != nil {
-		log.Printf("Error getting note: %v", err)
+		log.Printf("[GetNoteByID] Error getting note: %v", err)
+		if err == sql.ErrNoRows {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "note not found"})
+			return
+		}
+		c.IndentedJSON(http.StatusInternalServerError, err.Error())
 		return
 	}
 	c.IndentedJSON(http.StatusOK, note)
@@ -50,91 +48,133 @@ func GetNotesByID(c *gin.Context) {
 
 	ids := strings.Split(idsParam, ",")
 
-	var retrievedNotes = []note{}
+	var ids_i []int
 
-	//todo: get post by id from db
-	//todo: delete below
-	for index, a := range notes {
-		for _, b := range ids {
-			if a.ID == b {
-				retrievedNotes = append(retrievedNotes, notes[index])
-				break
-			}
+	for _, id := range ids {
+		id_i, err := strconv.Atoi(id)
+		if err == nil {
+			ids_i = append(ids_i, id_i)
 		}
 	}
-	//todo: delete above
-	c.IndentedJSON(http.StatusOK, retrievedNotes)
+
+	if len(ids_i) == 0 {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"error": "note not found"})
+		return
+	}
+
+	notes, err := db.GetNotesByID(ids_i)
+	if err != nil {
+		log.Printf("[GetNotesByID] Error getting notes: %v", err)
+		c.IndentedJSON(http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if len(notes) == 0 {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"error": "note not found"})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, notes)
 }
 
 func AddNewNote(c *gin.Context) {
-	var newNote note
+	var newNote db.Note
 
 	if err := c.BindJSON(&newNote); err != nil {
+		c.IndentedJSON(http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if newNote.Title == "" && newNote.Text == "" {
+		c.IndentedJSON(http.StatusForbidden, gin.H{"error": "note must have title or text"})
 		return
 	}
 
 	var id, err = db.CreateNote(newNote.Title, newNote.Text)
 
 	if err != nil {
-		log.Printf("Error creating note: %v", err)
+		log.Printf("[AddNewNote] Error creating note: %v", err)
+		c.IndentedJSON(http.StatusInternalServerError, err.Error())
 		return
 	}
 	c.IndentedJSON(http.StatusCreated, gin.H{"id": id})
 }
 
 func AddNewNotes(c *gin.Context) {
-	var newNotes []note
+	var newNotes []db.Note
 
 	if err := c.BindJSON(&newNotes); err != nil {
 		return
 	}
-	notes = append(notes, newNotes...) //todo: update in db
-	c.IndentedJSON(http.StatusCreated, newNotes)
-}
 
-func UpdateNote(c *gin.Context) { //func updateNotes ?
-	id := c.Param("id")
-
-	var updatedNote note
-
-	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
+	var ids []int
+	ids, err := db.CreateNotes(newNotes)
+	if err != nil {
+		log.Printf("[AddNewNotes] Error creating notes: %v", err)
+		c.IndentedJSON(http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	if err := c.ShouldBindJSON(&updatedNote); err != nil {
+	if len(ids) == 0 {
+		c.IndentedJSON(http.StatusForbidden, gin.H{"error": "note content cannot be empty"})
+		return
+	}
+
+	c.IndentedJSON(http.StatusCreated, gin.H{"ids": ids})
+}
+
+func UpdateNote(c *gin.Context) {
+
+	var updatedNote db.Note
+
+	if err := c.BindJSON(&updatedNote); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	id_i, _ := strconv.Atoi(id)
-
-	err := db.UpdateNote(id_i, updatedNote.Title, updatedNote.Text)
-
-	if err != nil {
-		log.Printf("Error updating note: %v", err)
+	if updatedNote.ID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"id": id})
-
-	/*for i, note := range notes {
-		if note.ID == id {
-			if updatedNote.Title != "" {
-				notes[i].Title = updatedNote.Title
-			}
-			if updatedNote.Text != "" {
-				notes[i].Text = updatedNote.Text
-			}
-			c.JSON(http.StatusOK, notes[i])
-			return
-		}
+	if updatedNote.Title == "" && updatedNote.Text == "" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "note must have title or text"})
+		return
 	}
 
-	//todo: update also in db
+	message, err := db.UpdateNote(updatedNote.ID, updatedNote.Title, updatedNote.Text)
 
-	c.JSON(http.StatusNotFound, gin.H{"error": "note not found"})*/
+	if err != nil {
+		log.Printf("[UpdateNote] Error updating note: %v", err)
+		c.IndentedJSON(http.StatusInternalServerError, err.Error())
+		return
+	}
 
+	c.JSON(http.StatusOK, message)
+
+}
+
+func UpdateNotes(c *gin.Context) {
+	var updatedNotes []db.Note
+
+	if err := c.BindJSON(&updatedNotes); err != nil {
+		c.IndentedJSON(http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	message, err := db.UpdateNotes(updatedNotes)
+	if err != nil {
+		log.Printf("[UpdateNotes] Error updating notes: %v", err)
+		c.IndentedJSON(http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if len(message) == 0 {
+		c.IndentedJSON(http.StatusForbidden, gin.H{"error": "note must have id and title or text"})
+		return
+	}
+
+	c.IndentedJSON(http.StatusCreated, message)
 }
 
 func DeleteNote(c *gin.Context) {
@@ -147,25 +187,15 @@ func DeleteNote(c *gin.Context) {
 
 	id_i, _ := strconv.Atoi(id)
 
-	err := db.DeleteNote(id_i)
+	message, err := db.DeleteNote(id_i)
 
 	if err != nil {
-		log.Printf("Error deleting note: %v", err)
+		log.Printf("[DeleteNote] Error deleting note: %v", err)
+		c.IndentedJSON(http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.IndentedJSON(http.StatusOK, gin.H{"id": id})
-
-	/*for index, a := range notes { //todo: instead get from db
-		if a.ID == id {
-			deletedNote = a
-			notes = append(notes[:index], notes[index+1:]...)
-			c.IndentedJSON(http.StatusOK, deletedNote) //todo: also delete from db
-			return
-		}
-	}
-
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "note not found."})*/
+	c.IndentedJSON(http.StatusOK, message)
 }
 
 func DeleteNotes(c *gin.Context) {
@@ -173,22 +203,25 @@ func DeleteNotes(c *gin.Context) {
 
 	ids := strings.Split(idsParam, ",")
 
-	var deletedNotes []note
-
 	if len(ids) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
 		return
 	}
 
-	for _, b := range ids {
-		for index, a := range notes {
-			if a.ID == b {
-				notes = append(notes[:index], notes[index+1:]...)
-				deletedNotes = append(deletedNotes, a)
-				break
-			}
-		}
+	var ids_i []int
+
+	for _, id := range ids {
+		id_i, _ := strconv.Atoi(id)
+		ids_i = append(ids_i, id_i)
 	}
 
-	c.IndentedJSON(http.StatusOK, deletedNotes)
+	message, err := db.DeleteNotes(ids_i)
+
+	if err != nil {
+		log.Printf("[DeleteNotes] Error deleting notes: %v", err)
+		c.IndentedJSON(http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, message)
 }

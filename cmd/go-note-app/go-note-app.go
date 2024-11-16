@@ -20,7 +20,8 @@ func main() {
 	router.POST("/note", handlers.AddNewNote)
 	router.POST("/notes", handlers.AddNewNotes)
 
-	router.PATCH("/note/:id", handlers.UpdateNote)
+	router.PATCH("/note", handlers.UpdateNote)
+	router.PATCH("/notes", handlers.UpdateNotes)
 
 	router.DELETE("/note/:id", handlers.DeleteNote)
 	router.DELETE("/notes/:ids", handlers.DeleteNotes)
